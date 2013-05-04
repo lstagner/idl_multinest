@@ -187,7 +187,6 @@ PRO multinest_test,NUM_PARAMS, NUM=NUM,SAMPLE_NUM=SAMPLE_NUM,EXPAND=EXPAND,PLOT=
 		loadct,0,/silent
 		plot,samples[0,*],samples[1,*],psym=3,xrange=[-1,1],yrange=[-1,1]
 	endif
-	return, samples
 	GET_OUT:
 END
 
