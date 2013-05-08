@@ -55,21 +55,24 @@
 FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 				   NUM=NUM,SAMPLE_NUM=SAMPLE_NUM,TOL=TOL,EXPAND=EXPAND,PLOT=PLOT,SILENT=SILENT
 	
-	DefSysV, '!RNG', Obj_New('RandomNumberGenerator')
+	if n_elements(!RNG) eq 0 then DefSysV, '!RNG', Obj_New('RandomNumberGenerator')
 	if not keyword_set(NUM) then NUM=1000
 	if not keyword_set(SAMPLE_NUM) then SAMPLE_NUM=1
 	if not keyword_set(EXPAND) then EXPAND=1.0d
 	if not keyword_set(TOL) then TOL=0.001d
 	
 	;;Get initial samples
-	live_points = !RNG -> GetRandomNumbers(NUM_PARAMS,NUM,/double)
-	
+	live_points=ptrarr(NUM,/allocate_heap)
+	for i=0,NUM-1 do begin
+		*live_points[i] = !RNG -> GetRandomNumbers(NUM_PARAMS,/double)
+	endfor
+
 	live_samples=CALL_FUNCTION(PRIOR_FUNC,live_points)
 ;	print,"GOT INITIAL LIVE SAMPLES"
 	;;Get initial likelihoods and likelihood min
 	live_likelihoods=dblarr(NUM)
 	for i=0L, NUM-1 do begin
-		live_likelihoods[i]=CALL_FUNCTION(LOG_LIKELIHOOD_FUNC,live_samples[*,i])
+		live_likelihoods[i]=CALL_FUNCTION(LOG_LIKELIHOOD_FUNC,live_samples[i])
 	endfor
 	likelihood_min=MIN(live_likelihoods,likelihood_min_loc,MAX=likelihood_max)
 	sample_likelihoods=live_likelihoods
@@ -102,7 +105,7 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 			;;Pick an ellipse to sample from based on the number of points in the ellipses
 			ellprob=total(double(ellnum)/double(totnum),/cumulative)
 			r=!RNG->GetRandomDigits(1)
-			w=in_ellipsoids(live_points[*,(r mod NUM)],result, expand=EXPAND, /location)
+			w=in_ellipsoids(live_points[(r mod NUM)],result, expand=EXPAND, /location)
 			if w[0] eq -1 then continue
 			if n_elements(w) gt 1 then w[0]=w[r mod n_elements(w)]
 			cov=result[w[0]].cov
@@ -127,12 +130,7 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 			samp_loc=in_ellipsoids(transpose(samp),result,expand=EXPAND)
 			r=!RNG->GetRandomNumbers(1,/double)
 			;;Accept point with probability 1.0/(number of ellipsoids the point lies in)
-			if r le (1.0d/samp_loc) then begin                                                    	    				
-				if k eq 0 then samples=tsamp else samples=[[samples],[tsamp]]
-				;;Add point to live points
-				live_points=[[live_points],[transpose(samp)]]
-				live_likelihoods=[live_likelihoods,samp_likelihood]
-				
+			if r le (1.0d/samp_loc) then begin
 				;;Update Log Evidence(logZ) and Information(H) 
 				;;Formula in D.S. Sivia Data Analysis: A Bayesian Tutorial
 				logwt=double(logw+likelihood_min)
@@ -140,7 +138,14 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 				H = exp(logwt-logZnew)*likelihood_min + exp(logZ-logZnew)*(H+logZ)-logZnew
 				logZ = logZnew
 				logw = logw-1.0/(double(NUM))
+
+				;;Add to samples                                                    	    				
+				if k eq 0 then samples=tsamp else samples=[[samples],[tsamp]]
+				;;Add point to live points
+				live_points=[[live_points],[transpose(samp)]]
+				live_likelihoods=[live_likelihoods,samp_likelihood]
 				
+
 				;;Determine Probability of sample 
 				if k eq 0 then log_prob=logwt else log_prob=[log_prob,logwt]
 				
