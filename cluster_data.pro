@@ -136,7 +136,7 @@ FUNCTION cluster_data,data,ellipsoid=ellipsoid
     
     volfrac=double(ellvol21+ellvol22)/double(ellvol1)
  
-	crit1=((BIC2 le BIC1) or (volfrac le 0.6D)) ;; VOLFRAC LE 0.0D WAS EXPERIMENTAL BUT NOT NECESSARY 
+	crit1=((BIC2 le BIC1) or (volfrac le 0.7D)) ;; VOLFRAC LE 0.0D WAS EXPERIMENTAL BUT NOT NECESSARY 
 	crit2=(nwh1 gt nrow+1 and nwh2 gt nrow +1)
  	IF crit1 and crit2 THEN BEGIN
  		branch1=cluster_data(d1,ellipsoid=ellipsoid1)

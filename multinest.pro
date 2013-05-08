@@ -19,7 +19,8 @@
 ;				   SAMPLE_NUM = sample_num, $
 ;				   TOL = tol				$
 ;				   EXPAND = expand,         $
-;				   PLOT = plot				)
+;				   PLOT = plot, 			$	
+;				   SILENT=SILENT			)
 ;PARAMETERS:
 ;	LOG_LIKELIHOOD_FUNC: NAME OF LOG LIKELIHOOD FUNCTION OF THE FORM: VALUE=LOG_LIKELIHOOD_FUNC(ARRAY[NUM_PARAMS]) 
 ;						 (LOG LIKELIHOOD FUNCTION RETURNS THE LOG OF THE LIKELIHOOD FUNCTION GIVEN A SET OF PARAMETERS)
@@ -51,7 +52,8 @@
 ;DATE MODIFIED:
 ;	08/06/2012
 
-FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,NUM=NUM,SAMPLE_NUM=SAMPLE_NUM,TOL=TOL,EXPAND=EXPAND,PLOT=PLOT
+FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
+				   NUM=NUM,SAMPLE_NUM=SAMPLE_NUM,TOL=TOL,EXPAND=EXPAND,PLOT=PLOT,SILENT=SILENT
 	
 	DefSysV, '!RNG', Obj_New('RandomNumberGenerator')
 	if not keyword_set(NUM) then NUM=1000
@@ -63,14 +65,12 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,NUM=NUM,SAMPLE_NUM=
 	live_points = !RNG -> GetRandomNumbers(NUM_PARAMS,NUM,/double)
 	
 	live_samples=CALL_FUNCTION(PRIOR_FUNC,live_points)
-	print,"GOT INITIAL LIVE SAMPLES"
+;	print,"GOT INITIAL LIVE SAMPLES"
 	;;Get initial likelihoods and likelihood min
 	live_likelihoods=dblarr(NUM)
 	for i=0L, NUM-1 do begin
 		live_likelihoods[i]=CALL_FUNCTION(LOG_LIKELIHOOD_FUNC,live_samples[*,i])
-		print,"GOT",i,"th INITIAL LIVE LIKELIHOOD ",live_likelihoods[i]
 	endfor
-	print,"GOT ALL INITIAL LIVE LIKELIHOODS"	
 	likelihood_min=MIN(live_likelihoods,likelihood_min_loc,MAX=likelihood_max)
 	sample_likelihoods=live_likelihoods
 
@@ -95,7 +95,6 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,NUM=NUM,SAMPLE_NUM=
 		for i=0,clusters-1 do begin
 			ellnum[i]=result[i].data_num
 		endfor
-				
 		totnum=total(ellnum)
 		cnt=0L
 
@@ -161,7 +160,7 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,NUM=NUM,SAMPLE_NUM=
 		;;Determine the largest contribution to the log evidence from the existing live points if the sampling loop
 		;;If this is less then some tolerance the sampling loop is terminated
 		deltaZ = log_plus(logZ,likelihood_max-k/double(NUM))-logZ
-		if k mod 1 eq 0 then print,"DELTA LOGZ: ",deltaZ
+		if k mod 25 eq 0 and not keyword_set(SILENT) then print,'DELTA LOGZ: '+strtrim(string(deltaZ))
 
 		if keyword_set(PLOT) then begin
 			if NUM_PARAMS eq 1 then !p.multi=0
@@ -196,12 +195,13 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,NUM=NUM,SAMPLE_NUM=
 	samples=samples[*,sort_order]
 	log_prob=log_prob[sort_order]
 	
-	print,"H = " , H 
-	print,"Log(Z) = ", logZ , " +- ", sqrt(H/(1.0*NUM))
+	print,'H = ' , H 
+	print,'Log(Z) = ' + string(logZ) + ' +- '+ string(sqrt(H/(1.0*NUM)))
 	
 	;;Return data structure that contains the samples,the log probability,
 	;;the log evidence and error, and the information respectively
 	data_str={samples:samples,log_prob:log_prob,logZ:logZ,logZ_err:sqrt(H/(1.0*NUM)),H:H}
+	!p.multi=0
 	return, data_str
 	GET_OUT:
 END
