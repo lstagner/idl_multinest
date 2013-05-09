@@ -20,7 +20,7 @@
 ;				   TOL = tol				$
 ;				   EXPAND = expand,         $
 ;				   PLOT = plot, 			$	
-;				   SILENT=SILENT			)
+;				   SILENT=silent			)
 ;PARAMETERS:
 ;	LOG_LIKELIHOOD_FUNC: NAME OF LOG LIKELIHOOD FUNCTION OF THE FORM: VALUE=LOG_LIKELIHOOD_FUNC(ARRAY[NUM_PARAMS]) 
 ;						 (LOG LIKELIHOOD FUNCTION RETURNS THE LOG OF THE LIKELIHOOD FUNCTION GIVEN A SET OF PARAMETERS)
@@ -41,6 +41,7 @@
 ;	SAMPLE_ELLIPSOID.PRO
 ;	IN_ELLIPSOIDS.PRO
 ;	RANDOMNUMBERGENERATOR__DEFINE.PRO
+;	PLOT_2D_CLUSTERS.PRO
 ;COMMON BLOCKS:
 ;	NONE 
 ;REFERENCES:
@@ -55,7 +56,7 @@
 FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 				   NUM=NUM,SAMPLE_NUM=SAMPLE_NUM,TOL=TOL,EXPAND=EXPAND,PLOT=PLOT,SILENT=SILENT
 	
-	if n_elements(!RNG) eq 0 then DefSysV, '!RNG', Obj_New('RandomNumberGenerator')
+	DefSysV, '!RNG', Obj_New('RandomNumberGenerator')
 	if not keyword_set(NUM) then NUM=1000
 	if not keyword_set(SAMPLE_NUM) then SAMPLE_NUM=1
 	if not keyword_set(EXPAND) then EXPAND=1.0d
@@ -68,25 +69,30 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 	endfor
 
 	live_samples=CALL_FUNCTION(PRIOR_FUNC,live_points)
+
 ;	print,"GOT INITIAL LIVE SAMPLES"
 	;;Get initial likelihoods and likelihood min
 	live_likelihoods=dblarr(NUM)
 	for i=0L, NUM-1 do begin
 		live_likelihoods[i]=CALL_FUNCTION(LOG_LIKELIHOOD_FUNC,live_samples[i])
 	endfor
+
 	likelihood_min=MIN(live_likelihoods,likelihood_min_loc,MAX=likelihood_max)
 	sample_likelihoods=live_likelihoods
-
+	
 	;;Initialize Varibles	
 	H = 0.0
 	logZ=-(machar(/double)).xmax
-	k=0.0
+	k=0L
 	logw=alog(1.0-exp(-1.0/double(NUM)))
 	deltaZ = TOL
-	
+
+	samples=ptrarr(10000)
+	log_prob=dblarr(10000,/nozero)
+	n_samp=10000L	
 	;;Begin Nested Sampling Loop
 	while (deltaZ ge TOL) do begin
-	
+;		print,'Clustering Data'
 		;;Cluster the live points 		
 		result=cluster_data(live_points)
 		
@@ -101,7 +107,10 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 		totnum=total(ellnum)
 		cnt=0L
 
+		if NUM_PARAMS eq 2 and keyword_set(plot) then plot_2d_clusters,result
+
 		while cnt le SAMPLE_NUM-1 do begin
+			hit=0.0 & miss=0.0
 			;;Pick an ellipse to sample from based on the number of points in the ellipses
 			ellprob=total(double(ellnum)/double(totnum),/cumulative)
 			r=!RNG->GetRandomDigits(1)
@@ -113,69 +122,66 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 			sevecs=result[w[0]].sevecs ;Scaled Eigenvectors                        
 			k_fac_max=result[w[0]].kmax ;Ellipsoid surface constant i.e. (x/a)^2 + (y/b)^2 + ... == kmax
 			
+;			print,'Starting sampling'		
 			;;Sample ellipsoid until a viable point is obtained viable being greater than likelihood min
 			while 1 do begin
-				samp=sample_ellipsoid(cov,mean,k_fac_max,expand=EXPAND,scaled_evecs=sevecs)
-				w=where(samp gt 1.0D or samp lt 0.0D,nw)
-				if nw ne 0 then continue
-				tsamp=CALL_FUNCTION(PRIOR_FUNC,transpose(samp))
-				samp_likelihood=CALL_FUNCTION(LOG_LIKELIHOOD_FUNC,transpose(tsamp))
+				samp=sample_ellipsoid(cov,mean,k_fac_max,expand=EXPAND,scaled_evecs=sevecs,/ptr)
+				w=where(*samp gt 1.0D or *samp lt 0.0D,nw)
+				if nw ne 0 then begin
+;					 print,'sampled point outside prior'
+					 continue
+				endif
+				tsamp=CALL_FUNCTION(PRIOR_FUNC,samp)
+				samp_likelihood=CALL_FUNCTION(LOG_LIKELIHOOD_FUNC,tsamp)
 				if (samp_likelihood gt likelihood_min) then begin
 	        		break
 				endif
+				miss+=1.0
+;				print,hit/(hit+miss)
 			endwhile
-			
+;			print,'Found Point'
 			;;Determine which ellipsoids does the sample lie in. Ellipsoids could intersect so even though
 			;;we sampled from one ellipsoid it could lie in more than one
-			samp_loc=in_ellipsoids(transpose(samp),result,expand=EXPAND)
+			samp_loc=in_ellipsoids(samp,result,expand=EXPAND)
 			r=!RNG->GetRandomNumbers(1,/double)
+;			print,'Checking to see if it is accepted'
 			;;Accept point with probability 1.0/(number of ellipsoids the point lies in)
 			if r le (1.0d/samp_loc) then begin
+				hit+=1.0
 				;;Update Log Evidence(logZ) and Information(H) 
 				;;Formula in D.S. Sivia Data Analysis: A Bayesian Tutorial
+;				print,'Updating Evidence'
 				logwt=double(logw+likelihood_min)
 				logZnew=log_plus(logZ,logwt) 
 				H = exp(logwt-logZnew)*likelihood_min + exp(logZ-logZnew)*(H+logZ)-logZnew
 				logZ = logZnew
 				logw = logw-1.0/(double(NUM))
 
-				;;Add to samples                                                    	    				
-				if k eq 0 then samples=tsamp else samples=[[samples],[tsamp]]
-				;;Add point to live points
-				live_points=[[live_points],[transpose(samp)]]
-				live_likelihoods=[live_likelihoods,samp_likelihood]
-				
+				;;Add to sample and record its log prob                            	    				
+				if (k+cnt) ge n_samp then begin
+					 samples=[samples,ptrarr(NUM)]
+					 log_prob=[log_prob,dblarr(NUM,/nozero)]
+					 n_samp+=NUM	 
+				endif ;;Determine Probability of sample 
+				log_prob[k+cnt]=logwt
+				samples[k+cnt]=live_samples[likelihood_min_loc]
 
-				;;Determine Probability of sample 
-				if k eq 0 then log_prob=logwt else log_prob=[log_prob,logwt]
-				
-				;;Remove the live point with lowest likelihood(likelihood_min)
-				w=where(live_likelihoods ne likelihood_min,w_num,complement=nw,ncomplement=nw_num)
-				if nw_num gt 1 then w=[w,nw[1:*]]
-			    live_likelihoods=live_likelihoods[w]
-				live_points=live_points[*,w]
+				;;Add point to live points
+				live_points[likelihood_min_loc]=samp
+				live_samples[likelihood_min_loc]=tsamp
+				live_likelihoods[likelihood_min_loc]=samp_likelihood
 				
 				;;Determine newest likelihood min and max
 				likelihood_min=MIN(live_likelihoods,likelihood_min_loc,MAX=likelihood_max)
 				cnt=cnt+1
-
 			endif
 		endwhile
 		k=k+cnt
 		;;Determine the largest contribution to the log evidence from the existing live points if the sampling loop
 		;;If this is less then some tolerance the sampling loop is terminated
 		deltaZ = log_plus(logZ,likelihood_max-k/double(NUM))-logZ
-		if k mod 25 eq 0 and not keyword_set(SILENT) then print,'DELTA LOGZ: '+strtrim(string(deltaZ))
+		if k mod SAMPLE_NUM eq 0 and not keyword_set(SILENT) then print,'DELTA LOGZ: '+strtrim(string(deltaZ))+string(hit/(hit+miss))
 
-		if keyword_set(PLOT) then begin
-			if NUM_PARAMS eq 1 then !p.multi=0
-			if NUM_PARAMS lt 7 then !p.multi=[0,NUM_PARAMS,1,0,0]
-			if NUM_PARAMS ge 7 and NUM_PARAMS lt 13 then !p.multi=[0,6,2,0,0]
-            for i=0,NUM_PARAMS-1 do begin
-                hist=histogram(samples[i,*],locations=xbins,NBINS=50)
-                plot,xbins,hist/total(hist),psym=10
-            endfor                                                       
-		endif
 		for i=0,clusters-1 do ptr_free,result[i].data_ptr
 
 
@@ -187,17 +193,24 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 	for i=0, NUM-1 do begin
 		logwt=double(logw+live_likelihoods[i])		
 		logZnew=log_plus(logZ,logwt)
-		log_prob=[log_prob,logwt]
 		H = exp(logwt-logZnew)*live_likelihoods[i] + exp(logZ-logZnew)*(H+logZ)-logZnew
-		logZ=logZnew	
-		samples=[[samples],[CALL_FUNCTION(PRIOR_FUNC,live_points[*,i])]]
+		logZ=logZnew
+    	if (k+cnt) ge n_samp then begin
+        	samples=[samples,ptrarr(NUM)]
+			log_prob=[log_prob,dblarr(NUM,/nozero)]
+			n_samp+=NUM
+        endif
+		log_prob[k]=logwt
+        samples[k]=live_samples[i]
+		k+=1
 	endfor
-	
+	samples=samples[0:k-1]
+	log_prob=log_prob[0:k-1]
 	;;Normalize log probability
 	log_prob=log_prob-logZ
 	;;Sort the points for convienence 
 	sort_order=SORT(log_prob)
-	samples=samples[*,sort_order]
+	samples=samples[sort_order]
 	log_prob=log_prob[sort_order]
 	
 	print,'H = ' , H 

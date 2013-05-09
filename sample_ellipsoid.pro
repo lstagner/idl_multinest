@@ -32,7 +32,7 @@
 ;	MULTINEST PROGRAM BY F. FEROZ
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-FUNCTION sample_ellipsoid,cov,mean,kfac,expand=expand,scaled_evecs=scaled_evecs,surface=surface
+FUNCTION sample_ellipsoid,cov,mean,kfac,expand=expand,scaled_evecs=scaled_evecs,surface=surface,ptr=ptr
 
 	;;IN SCALED_EVECS EIGENVECTORS ARE IN ROWS
 ;    DefSysV, '!RNG', Obj_New('RandomNumberGenerator')
@@ -65,7 +65,5 @@ FUNCTION sample_ellipsoid,cov,mean,kfac,expand=expand,scaled_evecs=scaled_evecs,
 	tmp= (ru^( 1.0D / dim )) / sqrt( total( rn^2.0D ) ) 
 	rn=tmp[0]*rn
 	samp= sqrt(expand*kfac) * transpose(scaled_evecs)##transpose(double(rn)) + mean
-	
-	return,samp
-	
+	if keyword_set(ptr) then return,ptr_new(reform(samp)) else return,samp
 END
