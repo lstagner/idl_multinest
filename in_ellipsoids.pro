@@ -50,5 +50,5 @@ FUNCTION in_ellipsoids,point_in, ellipsoids,expand=expand,location=location ;;re
 	loc=where(num ne 0,nloc)
 	if keyword_set(location) then $
 		return, loc else $
-		return, total(num)
+		return, nloc > 1
 END
