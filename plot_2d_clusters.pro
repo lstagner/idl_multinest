@@ -3,8 +3,6 @@ PRO plot_2d_clusters,clusters,x_range=x_range,y_range=y_range
  	if not keyword_set(y_range) then y_range=[0,1]
     num_clusters=n_elements(clusters)
 
-    window,0,xsize=500,ysize=500
-
     plot,[0,0],[1,1],xrange=x_range,yrange=y_range,/nodata
     for i=0,num_clusters-1 do begin
        	loadct,13,/silent

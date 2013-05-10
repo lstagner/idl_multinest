@@ -55,7 +55,7 @@
 
 FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 				   NUM=NUM,SAMPLE_NUM=SAMPLE_NUM,TOL=TOL,EXPAND=EXPAND,$
-				   PLOT=PLOT,SILENT=SILENT,NTHREADS=NTHREADS
+				   PLOT=PLOT,SILENT=SILENT,NTHREADS=NTHREADS,USE_THREADS=USE_THREADS
 	
 	DefSysV, '!RNG', Obj_New('RandomNumberGenerator')
 	if not keyword_set(NUM) then NUM=1000
@@ -64,10 +64,13 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 	if not keyword_set(TOL) then TOL=0.001d
 	if not keyword_set(NTHREADS) then NTHREADS=4
 
-	;;Create threads
-	create_threads,NTHREADS,threads,/idl_startup
-	execute_threads,threads,"DefSysV, '!RNG', Obj_New('RandomNumberGenerator') & !EXCEPT=0"
-	wait_threads,threads
+	if keyword_set(USE_THREADS) then begin
+		;;Create threads
+		create_threads,NTHREADS,threads,/idl_startup
+		execute_threads,threads,"DefSysV, '!RNG', Obj_New('RandomNumberGenerator') & !EXCEPT=0"
+		wait_threads,threads
+	endif
+
 	;;Get initial samples
 	live_points=ptrarr(NUM,/allocate_heap)
 	for i=0,NUM-1 do begin
@@ -111,10 +114,6 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 		endfor
 		totnum=total(ellnum)
 		cnt=0L
-		saved_samp_arr=ptrarr(clusters,NTHREADS,/allocate_heap)
-		saved_point_arr=ptrarr(clusters,NTHREADS,/allocate_heap)
-		saved_like_arr=dblarr(clusters,NTHREADS)
-		last_point=intarr(clusters)+NTHREADS+1
 
 		if NUM_PARAMS eq 2 and keyword_set(plot) then plot_2d_clusters,result
 		
@@ -131,42 +130,39 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 			mean=result[w[0]].mean
 			sevecs=result[w[0]].sevecs ;Scaled Eigenvectors                        
 			k_fac_max=result[w[0]].kmax ;Ellipsoid surface constant i.e. (x/a)^2 + (y/b)^2 + ... == kmax
-			
+			if keyword_set(USE_THREADS) then begin
+				in_vars=['PRIOR_FUNC','LOG_LIKELIHOOD_FUNC','cov','mean','k_fac_max','EXPAND','sevecs']
+				out_vars=['samp','tsamp','samp_likelihood']
+				push_variable,threads,in_vars
+				wait_threads,threads
+			endif
 			;;Sample in Parallel
-
+			samp_likelihood=likelihood_min-1
 			while 1 do begin
-				samp_likelihood=likelihood_min+1.0
-				if last_point[w[0]] ge NTHREADS then begin
+				if keyword_set(USE_THREADS) then begin
 					cmd='get_sample,PRIOR_FUNC,LOG_LIKELIHOOD_FUNC,cov,mean,k_fac_max,EXPAND,sevecs,samp,tsamp,samp_likelihood'
-					in_vars=['PRIOR_FUNC','LOG_LIKELIHOOD_FUNC','cov','mean','k_fac_max','EXPAND','sevecs']
-					out_vars=['samp','tsamp','samp_likelihood']
-					run_parallel,threads,cmd,in_vars,out_vars,output
-					
+					execute_threads,threads,cmd
+					wait_threads,threads
+					pull_variable,threads,out_vars,output
 					for i=0,NTHREADS-1 do begin
-						saved_like_arr[w[0],i]= (*output[i,2])
-						*saved_samp_arr[w[0],i]= (*output[i,1])
-						*saved_point_arr[w[0],i]= (*output[i,0])
+						samp_likelihood= (*(output[i,2]))
+						if samp_likelihood gt likelihood_min then begin
+							samp=output[i,0]
+							tsamp=output[i,1]
+							break
+						endif
 					endfor
-					last_point=last_point*0.0
-				endif
-				
-				for i=last_point[w[0]],NTHREADS-1 do begin
-					last_point[w[0]]=i+1
-					if saved_like_arr[w[0],i] gt likelihood_min then begin
-						samp=ptr_new(*saved_point_arr[w[0],i])
-						tsamp=ptr_new(*saved_samp_arr[w[0],i])
-						samp_likelihood=saved_like_arr[w[0],i]
-						break
-					endif
-				endfor
-				if samp_likelihood gt likelihood_min then break
+				endif else begin
+					get_sample,PRIOR_FUNC,LOG_LIKELIHOOD_FUNC,cov,mean,k_fac_max,EXPAND,sevecs,samp,tsamp,samp_likelihood,/ptr
+				endelse
+				if samp_likelihood gt likelihood_min then break else miss=miss+1
 			endwhile		
-			print,last_point[w[0]]	
+
 			;;Determine which ellipsoids does the sample lie in. Ellipsoids could intersect so even though
 			;;we sampled from one ellipsoid it could lie in more than one
 			samp_num=in_ellipsoids(samp,result,expand=EXPAND)
 			r=!RNG->GetRandomNumbers(1,/double)
-;			print,'Checking to see if it is accepted'
+
 			;;Accept point with probability 1.0/(number of ellipsoids the point lies in)
 			if r le (1.0d/samp_num) then begin
 				hit+=1.0
@@ -190,29 +186,27 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 				logZ = logZnew
 				logw = logw-1.0d/(double(NUM))
 
-				;;add 
+				;;add to samples and record prob 
 				log_prob[k+cnt]=logwt
 				samples[k+cnt]=live_samples[likelihood_min_loc]
 
 				;;Add point to live points
-				*live_points[likelihood_min_loc]=(*samp)
-				*live_samples[likelihood_min_loc]=(*tsamp)
+				live_points[likelihood_min_loc]=samp
+				live_samples[likelihood_min_loc]=tsamp
 				live_likelihoods[likelihood_min_loc]=samp_likelihood
 				
 			    likelihood_min=MIN(live_likelihoods,likelihood_min_loc,MAX=likelihood_max)
 
 				cnt=cnt+1
-			endif
-		deltaZ = log_plus(logZ,likelihood_max-(k+cnt)/double(NUM))-logZ
-		if deltaZ lt TOL then break
+			endif else miss+=1
 		endwhile
 		k=k+cnt
 		;;Determine the largest contribution to the log evidence from the existing live points if the sampling loop
 		;;If this is less then some tolerance the sampling loop is terminated
+		deltaZ = log_plus(logZ,likelihood_max-(k+cnt)/double(NUM))-logZ
 		if k mod SAMPLE_NUM eq 0 and not keyword_set(SILENT) then print,'DELTA LOGZ: '+strtrim(string(deltaZ))+string(hit/(hit+miss))
 
 		for i=0,clusters-1 do ptr_free,result[i].data_ptr
-		ptr_free,samp,tsamp,saved_point_arr,saved_samp_arr
 	endwhile
 	
 	;;Add the log evidence contribution from the remaining live points 
@@ -247,7 +241,7 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 	;;Return data structure that contains the samples,the log probability,
 	;;the log evidence and error, and the information respectively
 	data_str={samples:samples,log_prob:log_prob,logZ:logZ,logZ_err:sqrt(H/(1.0*NUM)),H:H}
-	destroy_threads,threads
+	if keyword_set(USE_THREADS) then destroy_threads,threads
 	return, data_str
 	GET_OUT:
 END
