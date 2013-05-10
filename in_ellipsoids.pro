@@ -33,11 +33,10 @@
 FUNCTION in_ellipsoids,point_in, ellipsoids,expand=expand,location=location ;;return value of cluster_data
 
 	num_ellipsoids=n_elements(ellipsoids)
-	point_info=size(point_in)
+	point_info=size(point_in[0])
 	if point_info[-2] eq 10 then begin
-			point=*point_in
+			point = *point_in[0]
 	endif else point=point_in
-
 	if not keyword_set(expand) then expand=1.0D
 	num=dblarr(num_ellipsoids)
 	for i=0, num_ellipsoids-1 do begin
