@@ -116,7 +116,7 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 		cnt=0L
 
 		if NUM_PARAMS eq 2 and keyword_set(plot) then plot_2d_clusters,result
-		
+		index=0
 		while cnt le SAMPLE_NUM-1 do begin
 			hit=0.0 & miss=0.0
 			;;Pick an ellipse to sample from based on the number of points in the ellipses
@@ -140,18 +140,24 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 			samp_likelihood=likelihood_min-1
 			while 1 do begin
 				if keyword_set(USE_THREADS) then begin
-					cmd='get_sample,PRIOR_FUNC,LOG_LIKELIHOOD_FUNC,cov,mean,k_fac_max,EXPAND,sevecs,samp,tsamp,samp_likelihood'
-					execute_threads,threads,cmd
-					wait_threads,threads
-					pull_variable,threads,out_vars,output
-					for i=0,NTHREADS-1 do begin
+					if index eq 0 then begin
+						cmd='get_sample,PRIOR_FUNC,LOG_LIKELIHOOD_FUNC,cov,mean,k_fac_max,EXPAND,sevecs,samp,tsamp,samp_likelihood'
+						execute_threads,threads,cmd
+						wait_threads,threads
+						pull_variable,threads,out_vars,output
+					endif
+					tmp=index
+					for i=tmp,NTHREADS-1 do begin
+						if clusters eq 1 then index+=1
 						samp_likelihood= (*(output[i,2]))
 						if samp_likelihood gt likelihood_min then begin
 							samp=output[i,0]
 							tsamp=output[i,1]
+							if clusters eq 1 then print,index
 							break
 						endif
 					endfor
+					if index ge NTHREADS then index=0
 				endif else begin
 					get_sample,PRIOR_FUNC,LOG_LIKELIHOOD_FUNC,cov,mean,k_fac_max,EXPAND,sevecs,samp,tsamp,samp_likelihood,/ptr
 				endelse
