@@ -6,7 +6,7 @@
 ;;	An array of structures. Each structure is a cluster and contains a pointer to the data and other useful 
 ;; 	information 
 
-FUNCTION cluster_data,data_pts,ellipsoid=ellipsoid
+FUNCTION cluster_data,data_pts,ellipsoid=ellipsoid,k_medoids=k_medoids
 
 	FORWARD_FUNCTION cluster_data
 
@@ -69,8 +69,12 @@ FUNCTION cluster_data,data_pts,ellipsoid=ellipsoid
 	BIC1=nrow*ncol*alog(2.0*3.14159265)+ncol*alog(detcov1)+a+.5*nrow*(nrow+3.0)*alog(ncol)	
 	
 	;;TRY TWO CLUSTERS
-;	w2=CLUST_WTS(data,N_CLUSTERS=2,N_ITERATIONS=100)
-	w2=k_medoids(data,n_clusters=2,n_iterations=100)
+	if keyword_set(k_medoids) then begin
+		w2 = k_medoids(data,n_clusters=2, n_iterations=100)
+	endif else begin
+		 w2=CLUST_WTS(data,N_CLUSTERS=2,N_ITERATIONS=100)
+	endelse
+
 	r2=CLUSTER(data,w2,N_CLUSTERS=2)
 	clusters=r2[UNIQ(r2,sort(r2))]
 	nwh1=0
@@ -150,8 +154,8 @@ FUNCTION cluster_data,data_pts,ellipsoid=ellipsoid
 	crit2=(nwh1 gt nrow+1 and nwh2 gt nrow +1)
 
  	IF crit1 and crit2 THEN BEGIN
- 		branch1=cluster_data(d1,ellipsoid=ellipsoid1)
- 		branch2=cluster_data(d2,ellipsoid=ellipsoid2)
+ 		branch1=cluster_data(d1,ellipsoid=ellipsoid1,k_medoids=k_medoids)
+ 		branch2=cluster_data(d2,ellipsoid=ellipsoid2,k_medoids=k_medoids)
  		return_val=[branch1,branch2]
  	ENDIF else begin
  		data_pointer=ptr_new(data)

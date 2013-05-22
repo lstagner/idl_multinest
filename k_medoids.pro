@@ -6,15 +6,15 @@ FUNCTION k_medoids, data,n_clusters=n_clusters,n_iterations=n_iterations
 	n_points=n_elements(data[0,*])
 	distances=DISTANCE_MEASURE(data,/double,/matrix)
 
-;	if n_clusters eq 2L then begin
-;		tmp=max(distances,w)
-;		ind=array_indices(distances,w)
-;		centers=data[*,ind]
-;	endif else begin
+	if n_clusters eq 2L then begin
+		tmp=max(distances,w)
+		ind=array_indices(distances,w)
+		centers=data[*,ind]
+	endif else begin
 		r = !RNG->GetRandomNumbers(n_clusters,/long)
 		ind= r mod n_points
 		centers=data[*,ind]
-;	endelse
+	endelse
 
 	cost=distances[ind,*]
 	tmp=min(cost,tmp2,dimension=1)

@@ -1,4 +1,4 @@
-PRO test_clustering,NUM=NUM,time=time
+PRO test_clustering,NUM=NUM,time=time,k_medoids=k_medoids
 
     DefSysV, '!RNG', Obj_New('RandomNumberGenerator')
 	if not keyword_set(NUM) then NUM=10
@@ -22,7 +22,7 @@ PRO test_clustering,NUM=NUM,time=time
         		r=[[r],[d]]
        		 endelse
    		endfor
-	    clusters=cluster_data(r)
+	    clusters=cluster_data(r,k_medoids=k_medoids)
 	   	plot_2d_clusters,clusters,x_range=[-10,10],y_range=[-10,10]
 	endif else begin
 		nclusters=[1,2,5]
@@ -51,7 +51,7 @@ PRO test_clustering,NUM=NUM,time=time
        				endelse
    				endfor
 				t=systime(1)
-	    		clusters=cluster_data(r)
+	    		clusters=cluster_data(r,k_medoids=k_medoids)
 				times[j,k]=times[j,k]+systime(1)-t
 			endfor
 		endfor

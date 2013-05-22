@@ -7,7 +7,7 @@ PRO mcmc_step,start,constraint,log_likelihood_func,prior_func,samp,tsamp,log_lik
 
 	tstart = CALL_FUNCTION(prior_func,start)
 	p = CALL_FUNCTION(log_likelihood_func,tstart)
-	x = *start
+	x = *start[0]
 	r = !RNG -> GetRandomNumbers(n_elements(x),NUM_STEPS,/double,/NORMAL)
 	i=0
 	while i lt NUM_STEPS do begin
@@ -37,7 +37,7 @@ PRO mcmc_step,start,constraint,log_likelihood_func,prior_func,samp,tsamp,log_lik
 
 	samp=x
 	err=0
-	if array_equal(samp,*start) eq 1 then err=1
+	if array_equal(samp,*start[0]) eq 1 then err=1
 	if keyword_set(ptr) then begin
 		samp=ptr_new(samp)
 		tsamp=ptr_new(xt_prime)
