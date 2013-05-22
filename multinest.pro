@@ -127,11 +127,11 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 			hit=0.0 & miss=0.0
 			;;Pick an ellipse to sample from based on the number of points in the ellipses
 			ellprob=total(double(ellnum)/double(totnum),/cumulative)
-			r=!RNG->GetRandomDigits(1)
+			r=!RNG->GetRandomNumbers(1,/long)
 			start_point=live_points[(r mod NUM)]
 			w=in_ellipsoids(live_points[(r mod NUM)],result, expand=EXPAND, /location)
 			if w[0] eq -1 then continue
-			r=!RNG->GetRandomDigits(1) ;;pick new random number to be independent of the choice of ellipsoid
+			r=!RNG->GetRandomNumbers(1,/long) ;;pick new random number to be independent of the choice of ellipsoid
 			if n_elements(w) gt 1 then w[0]=w[r mod n_elements(w)]
 			cov=result[w[0]].cov
 			mean=result[w[0]].mean

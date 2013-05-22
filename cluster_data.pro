@@ -69,7 +69,8 @@ FUNCTION cluster_data,data_pts,ellipsoid=ellipsoid
 	BIC1=nrow*ncol*alog(2.0*3.14159265)+ncol*alog(detcov1)+a+.5*nrow*(nrow+3.0)*alog(ncol)	
 	
 	;;TRY TWO CLUSTERS
-	w2=CLUST_WTS(data,N_CLUSTERS=2,N_ITERATIONS=100)
+;	w2=CLUST_WTS(data,N_CLUSTERS=2,N_ITERATIONS=100)
+	w2=k_medoids(data,n_clusters=2,n_iterations=100)
 	r2=CLUSTER(data,w2,N_CLUSTERS=2)
 	clusters=r2[UNIQ(r2,sort(r2))]
 	nwh1=0
