@@ -63,13 +63,16 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 	if not keyword_set(EXPAND) then EXPAND=1.0d
 	if not keyword_set(TOL) then TOL=0.001d
 	if not keyword_set(NTHREADS) then NTHREADS=4
-
+	
 	if keyword_set(USE_THREADS) then begin
 		;;Create threads
 		create_threads,NTHREADS,threads,/idl_startup
 		execute_threads,threads,"DefSysV, '!RNG', Obj_New('RandomNumberGenerator') & !EXCEPT=0"
 		wait_threads,threads
 	endif
+
+	COMMON mcmc_common,accept,tot,sigma
+	accept=0.0d & tot=0.0d  & sigma=.01d
 
 	;;Get initial samples
 	live_points=ptrarr(NUM,/allocate_heap)
@@ -115,13 +118,17 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 		totnum=total(ellnum)
 		cnt=0L
 
-		if NUM_PARAMS eq 2 and keyword_set(plot) then plot_2d_clusters,result
+		if keyword_set(plot) then begin
+			if NUM_PARAMS ne 2 then no_ellipse=1
+			plot_2d_clusters,result,no_ellipse=no_ellipse
+		endif
 		index=0
 		while cnt le SAMPLE_NUM-1 do begin
 			hit=0.0 & miss=0.0
 			;;Pick an ellipse to sample from based on the number of points in the ellipses
 			ellprob=total(double(ellnum)/double(totnum),/cumulative)
 			r=!RNG->GetRandomDigits(1)
+			start_point=live_points[(r mod NUM)]
 			w=in_ellipsoids(live_points[(r mod NUM)],result, expand=EXPAND, /location)
 			if w[0] eq -1 then continue
 			r=!RNG->GetRandomDigits(1) ;;pick new random number to be independent of the choice of ellipsoid
@@ -138,28 +145,40 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 			endif
 			;;Sample in Parallel
 			samp_likelihood=likelihood_min-1
+			count=0L
 			while 1 do begin
-				if keyword_set(USE_THREADS) then begin
-					if index eq 0 then begin
-						cmd='get_sample,PRIOR_FUNC,LOG_LIKELIHOOD_FUNC,cov,mean,k_fac_max,EXPAND,sevecs,samp,tsamp,samp_likelihood'
-						execute_threads,threads,cmd
-						wait_threads,threads
-						pull_variable,threads,out_vars,output
-					endif
-					tmp=index
-					for i=tmp,NTHREADS-1 do begin
-						if clusters eq 1 then index+=1
-						samp_likelihood= (*(output[i,2]))
-						if samp_likelihood gt likelihood_min then begin
-							samp=output[i,0]
-							tsamp=output[i,1]
-							if clusters eq 1 then print,index
-							break
+				if count lt 100 then begin
+					if keyword_set(USE_THREADS) then begin
+						if index eq 0 then begin
+							cmd='get_sample,PRIOR_FUNC,LOG_LIKELIHOOD_FUNC,cov,mean,k_fac_max,EXPAND,sevecs,samp,tsamp,samp_likelihood'
+							execute_threads,threads,cmd
+							wait_threads,threads
+							pull_variable,threads,out_vars,output
 						endif
-					endfor
-					if index ge NTHREADS then index=0
+						tmp=index
+						for i=tmp,NTHREADS-1 do begin
+							if clusters eq 1 then index+=1
+							samp_likelihood= (*(output[i,2]))
+							if samp_likelihood gt likelihood_min then begin
+								samp=output[i,0]
+								tsamp=output[i,1]
+								if clusters eq 1 then print,index
+								break
+							endif
+						endfor
+						if index ge NTHREADS then index=0
+					endif else begin
+						get_sample,PRIOR_FUNC,LOG_LIKELIHOOD_FUNC,cov,mean,k_fac_max,EXPAND,sevecs,samp,tsamp,samp_likelihood,/ptr
+					endelse
+					count+=1
 				endif else begin
-					get_sample,PRIOR_FUNC,LOG_LIKELIHOOD_FUNC,cov,mean,k_fac_max,EXPAND,sevecs,samp,tsamp,samp_likelihood,/ptr
+;					print,'mcmc start'
+					mcmc_step,start_point,likelihood_min,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,samp,tsamp,samp_likelihood,err,/ptr
+					if err eq 1 then begin
+						samp_likelihood=likelihood_min-1.
+;						print,'mcmc failed'
+					endif; else print,'mcmc finished'
+					count=0L
 				endelse
 				if samp_likelihood gt likelihood_min then break else miss=miss+1
 			endwhile		
