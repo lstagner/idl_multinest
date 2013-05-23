@@ -176,7 +176,7 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 					mcmc_step,start_point,likelihood_min,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,samp,tsamp,samp_likelihood,err,/ptr
 					if err eq 1 then begin
 						samp_likelihood=likelihood_min-1.
-;						print,'mcmc failed'
+						print,'mcmc failed'
 					endif; else print,'mcmc finished'
 					count=0L
 				endelse
