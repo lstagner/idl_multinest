@@ -70,9 +70,9 @@ FUNCTION cluster_data,data_pts,ellipsoid=ellipsoid,k_medoids=k_medoids
 	
 	;;TRY TWO CLUSTERS
 	if keyword_set(k_medoids) then begin
-		w2 = k_medoids(data,n_clusters=2, n_iterations=100)
+		w2 = kmedoids(data,n_clusters=2, n_iterations=100)
 	endif else begin
-		 w2=CLUST_WTS(data,N_CLUSTERS=2,N_ITERATIONS=100)
+		w2=CLUST_WTS(data,N_CLUSTERS=2,N_ITERATIONS=100)
 	endelse
 
 	r2=CLUSTER(data,w2,N_CLUSTERS=2)
@@ -150,7 +150,7 @@ FUNCTION cluster_data,data_pts,ellipsoid=ellipsoid,k_medoids=k_medoids
     
     volfrac=double(ellvol21+ellvol22)/double(ellvol1)
  
-	crit1=((BIC2 le BIC1) or (volfrac le 0.0D)) ;; VOLFRAC IS EXPERIMENTAL BUT NOT NECESSARY 
+	crit1=((BIC2 le BIC1) or (volfrac le 1.5D)) ;; VOLFRAC IS EXPERIMENTAL BUT NOT NECESSARY 
 	crit2=(nwh1 gt nrow+1 and nwh2 gt nrow +1)
 
  	IF crit1 and crit2 THEN BEGIN
@@ -165,3 +165,4 @@ FUNCTION cluster_data,data_pts,ellipsoid=ellipsoid,k_medoids=k_medoids
  	
  	return, return_val
 END
+

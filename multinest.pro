@@ -105,7 +105,7 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 	while (deltaZ ge TOL) do begin
 ;		print,'Clustering Data'
 		;;Cluster the live points 		
-		result=cluster_data(live_points)
+		result=cluster_data(live_points,/k_medoids)
 		
 		;;Determine the number of clusters
 		clusters=n_elements(result)
@@ -177,7 +177,7 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 					if err eq 1 then begin
 						samp_likelihood=likelihood_min-1.
 						print,'mcmc failed'
-					endif; else print,'mcmc finished'
+					endif else print,'mcmc succeeded'
 					count=0L
 				endelse
 				if samp_likelihood gt likelihood_min then break else miss=miss+1
@@ -194,6 +194,7 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 
 				;;Check if we need more space                            	    				
 				if (k+cnt) ge n_samp then begin
+					 print,'expand'
 					 samples=[samples,ptrarr(NUM)]
 					 log_prob=[log_prob,dblarr(NUM,/nozero)]
 					 n_samp+=NUM	 
@@ -216,8 +217,8 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 				samples[k+cnt]=live_samples[likelihood_min_loc]
 
 				;;Add point to live points
-				live_points[likelihood_min_loc]=samp
-				live_samples[likelihood_min_loc]=tsamp
+				live_points[likelihood_min_loc]=samp[0]
+				live_samples[likelihood_min_loc]=tsamp[0]
 				live_likelihoods[likelihood_min_loc]=samp_likelihood
 				
 			    likelihood_min=MIN(live_likelihoods,likelihood_min_loc,MAX=likelihood_max)
@@ -259,14 +260,20 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 	sort_order=SORT(log_prob)
 	samples=samples[sort_order]
 	log_prob=log_prob[sort_order]
-	
+	samps=dblarr(NUM_PARAMS,n_elements(log_prob))
+	for i=0,n_elements(log_prob)-1 do begin
+		samps[*,i]= (*(samples[i]))
+	endfor	
 	print,'H = ' , H 
 	print,'Log(Z) = ' + string(logZ) + ' +- '+ string(sqrt(H/(1.0*NUM)))
 	
 	;;Return data structure that contains the samples,the log probability,
 	;;the log evidence and error, and the information respectively
-	data_str={samples:samples,log_prob:log_prob,logZ:logZ,logZ_err:sqrt(H/(1.0*NUM)),H:H}
+	data_str={samples:samps,log_prob:log_prob,logZ:logZ,logZ_err:sqrt(H/(1.0*NUM)),H:H}
 	if keyword_set(USE_THREADS) then destroy_threads,threads
+	heap_free,samples
+	heap_free,live_points
+	heap_free,live_samples
 	return, data_str
 	GET_OUT:
 END

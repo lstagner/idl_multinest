@@ -1,4 +1,4 @@
-FUNCTION k_medoids, data,n_clusters=n_clusters,n_iterations=n_iterations
+FUNCTION kmedoids, data,n_clusters=n_clusters,n_iterations=n_iterations
 
 	if not keyword_set(n_clusters) then n_clusters=2L
 	if not keyword_set(n_iterations) then n_iterations=10

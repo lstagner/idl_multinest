@@ -40,7 +40,7 @@ PRO mcmc_step,start,constraint,log_likelihood_func,prior_func,samp,tsamp,log_lik
 	if array_equal(samp,*start[0]) eq 1 then err=1
 	if keyword_set(ptr) then begin
 		samp=ptr_new(samp)
-		tsamp=ptr_new(xt_prime)
-	endif
+		tsamp=xt_prime
+	endif else tsamp= *xt_prime
 	log_likelihood=p
 END 
