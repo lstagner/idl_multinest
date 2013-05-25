@@ -150,7 +150,7 @@ FUNCTION cluster_data,data_pts,ellipsoid=ellipsoid,k_medoids=k_medoids
     
     volfrac=double(ellvol21+ellvol22)/double(ellvol1)
  
-	crit1=((BIC2 le BIC1) or (volfrac le 1.5D)) ;; VOLFRAC IS EXPERIMENTAL BUT NOT NECESSARY 
+	crit1=((BIC2 le BIC1) or (volfrac le 0.5D)) ;; VOLFRAC IS EXPERIMENTAL BUT NOT NECESSARY 
 	crit2=(nwh1 gt nrow+1 and nwh2 gt nrow +1)
 
  	IF crit1 and crit2 THEN BEGIN

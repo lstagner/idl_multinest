@@ -119,8 +119,10 @@ FUNCTION multinest,LOG_LIKELIHOOD_FUNC,PRIOR_FUNC,NUM_PARAMS,$
 		cnt=0L
 
 		if keyword_set(plot) then begin
-			if NUM_PARAMS ne 2 then no_ellipse=1
-			plot_2d_clusters,result,no_ellipse=no_ellipse
+			if NUM_PARAMS eq 2 then begin
+				no_ellipse=0
+				plot_2d_clusters,result,no_ellipse=no_ellipse
+			endif else plot_3d_clusters,result
 		endif
 		index=0
 		while cnt le SAMPLE_NUM-1 do begin
