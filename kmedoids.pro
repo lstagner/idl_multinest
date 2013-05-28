@@ -6,8 +6,8 @@ FUNCTION kmedoids, data,n_clusters=n_clusters,n_iterations=n_iterations
 	n_points=n_elements(data[0,*])
 	distances=DISTANCE_MEASURE(data,/double,/matrix)
 	w=where(distances ne 0)
-	energies=distances*0
-	energies[w]=1.0/distances[w]
+	energies=distances
+;	energies[w]=1.0/distances[w]
 	if n_clusters eq 2L then begin
 		tmp=max(distances,w)
 		ind=array_indices(distances,w)
@@ -18,7 +18,7 @@ FUNCTION kmedoids, data,n_clusters=n_clusters,n_iterations=n_iterations
 		centers=data[*,ind]
 	endelse
 
-	energy= -energies[ind,*]
+	energy=energies[ind,*]
 	tmp=min(energy,tmp2,dimension=1)
 	tmp3=array_indices(energy,tmp2)
 	cluster_id=transpose(tmp3[0,*])
@@ -32,7 +32,7 @@ FUNCTION kmedoids, data,n_clusters=n_clusters,n_iterations=n_iterations
 			ind_new=ind
 			if k eq ind_new[j] then continue
 			ind_new[j]=k
-			energy_new=-energies[ind_new,*]
+			energy_new=energies[ind_new,*]
     		tmp=min(energy_new,tmp2,dimension=1)
 			tmp2=array_indices(energy_new,tmp2)
 			cluster_id_new=transpose(tmp2[0,*])
