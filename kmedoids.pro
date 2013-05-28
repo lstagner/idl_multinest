@@ -5,7 +5,9 @@ FUNCTION kmedoids, data,n_clusters=n_clusters,n_iterations=n_iterations
 	
 	n_points=n_elements(data[0,*])
 	distances=DISTANCE_MEASURE(data,/double,/matrix)
-
+	w=where(distances ne 0)
+	energies=distances*0
+	energies[w]=1.0/distances[w]
 	if n_clusters eq 2L then begin
 		tmp=max(distances,w)
 		ind=array_indices(distances,w)
@@ -16,29 +18,29 @@ FUNCTION kmedoids, data,n_clusters=n_clusters,n_iterations=n_iterations
 		centers=data[*,ind]
 	endelse
 
-	cost=distances[ind,*]
-	tmp=min(cost,tmp2,dimension=1)
-	tmp2=array_indices(cost,tmp2)
-	cluster=transpose(tmp2[0,*])
-	tot_cost=total(cost[cluster,lindgen(n_points)])		
+	energy= -energies[ind,*]
+	tmp=min(energy,tmp2,dimension=1)
+	tmp3=array_indices(energy,tmp2)
+	cluster_id=transpose(tmp3[0,*])
+	tot_energy=total(energy[cluster_id,lindgen(n_points)])
 
 	for i=0,n_iterations-1 do begin
 		r=!RNG->GetRandomNumbers(1,/long)
         k = r mod n_points
-		tot_costp=dblarr(n_clusters)
+		tot_energy_new=dblarr(n_clusters)
 		for j=0,n_clusters-1 do begin
-			indp=ind
-			if k eq indp[j] then continue
-			indp[j]=k
-			costp=distances[indp,*]
-    		tmp=min(cost,tmp2,dimension=1)
-			tmp2=array_indices(cost,tmp2)
-			cp=transpose(tmp2[0,*])
-			tot_costp[j]=total(cost[cluster,lindgen(n_points)])
+			ind_new=ind
+			if k eq ind_new[j] then continue
+			ind_new[j]=k
+			energy_new=-energies[ind_new,*]
+    		tmp=min(energy_new,tmp2,dimension=1)
+			tmp2=array_indices(energy_new,tmp2)
+			cluster_id_new=transpose(tmp2[0,*])
+			tot_energy_new[j]=total(energy_new[cluster_id_new,lindgen(n_points)])
 		endfor
-		w=where(tot_costp lt tot_cost,nw)
+		w=where(tot_energy_new lt tot_energy,nw)
 		if nw ne 0 then begin
-			tmp=min(tot_costp,w)
+			tmp=min(tot_energy_new,w)
 			ind[w]=k
 			centers=data[*,ind]
 		endif
