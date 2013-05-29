@@ -10,6 +10,7 @@ PRO mcmc_step,start,constraint,log_likelihood_func,prior_func,samp,tsamp,log_lik
 	x = *start[0]
 	r = !RNG -> GetRandomNumbers(n_elements(x),NUM_STEPS,/double,/NORMAL)
 	i=0
+	xt_prime=tstart
 	while i lt NUM_STEPS do begin
 ;		print,'step',i
 		tot+=1.0d
